@@ -177,13 +177,14 @@ if __name__ == "__main__":
 print("Done!")
 
 ## Get a song name, spotify link, or youtube link
-# Download the song via yt-dlp
+## Download the song via yt-dlp
 # Get the BPM of the song - either locally or via some online database
 ## Separate instruments using demucs
 ## Create a Reaper project with reathon and include the files and tempo
-# Start it and.. profit(?)
+## Start it and.. profit(?)
+# Not yet, still need to add tracks to reaper
 
 # Extra1: Do a bass2midi detection
 # Extra2: Do a midi2tabs conversion
 # Extra3: Chords Overlay (markers?)
-# Extra4: Lyrics
+# Extra4: Lyrics - https://github.com/johnwmillr/LyricsGenius/tree/master
