@@ -80,59 +80,92 @@ def yt_url_to_vid(url: str) -> str:
     return parse_qs(urlparse(url).query).get("v")[0]
 
 
-def search_song(query: str = None) -> dict:
+def search_song(query: str = None, url_given: bool = False) -> dict:
     # If not supplied, ask interactively
     query = query or inquirer.text("Search for a song")
 
     # Search for a song
     yt = YTMusic()
+    # NOTE: For some reason, limit doesn't really work, instead returning 20 items as the default (which is fine by me honestly)
     results = yt.search(query, filter="songs", limit=10)
 
-    # Ask the user for the correct song
-    choices = [
-        f"{i} | {r['artists'][0]['name']} - {r['title']} | {r['album']['name']} | {r['duration']}"
-        for i, r in enumerate(results)
-    ]
-    question = inquirer.List(
-        "song", message="Choose the correct song:", choices=choices
-    )
-    answers = inquirer.prompt([question])
+    # Multiple results, ask!
+    if len(results) > 1:
+        # Ask the user for the correct song
+        choices = [
+            f"{i} | {r['artists'][0]['name']} - {r['title']} | {r['album']['name']} | {r['duration']}"
+            for i, r in enumerate(results)
+        ]
+        question = inquirer.List(
+            "song", message="Choose the correct song", choices=choices
+        )
+        answers = inquirer.prompt([question])
 
-    # Parse the result and return full data about it
-    chosen_result_index = int(answers["song"].split(" | ")[0])
-    chosen_result = results[chosen_result_index]
+        # Parse the result and return full data about it
+        chosen_result_index = int(answers["song"].split(" | ")[0])
+        result = results[chosen_result_index]
+
+    # A single result, choose it
+    elif len(results) == 1:
+        result = results[0]
+
+        # TODO: Make this a logging print
+        print(
+            f"Only a single option, choosing it: {result['artists'][0]['name']} - {result['title']} | {result['album']['name']} | {result['duration']}"
+        )
+
+    # No results but URL given, supply values manually
+    elif url_given:
+        print("No search results found, please input song details manualy.")
+
+        questions = [
+            inquirer.Text(name="title", message="Song Name"),
+            inquirer.Text(name="artist", message="Artist Name"),
+        ]
+        result = inquirer.prompt(questions)
+
+        # Query is probably the video_id
+        result["video_id"] = query
+        result["video_url"] = yt_vid_to_url(query)
+
+        # We return here bc the last return statement expects the 'result' object to be structured differently
+        return result
+
+    # No results at all and no Video URL
+    else:
+        print("Error, no search results found and no URL was provided.")
+        return
+
+    return {
+        # "album": result["album"]["name"],
+        "artist": result["artists"][0]["name"],
+        "title": result["title"],
+        "video_id": result["videoId"],
+        "video_url": yt_vid_to_url(result["videoId"]),
+    }
 
     # print(chosen_result)
-    return chosen_result
+    # return chosen_result
 
 
-# def get_info_from_vid(vid: str) -> dict:
-#     return YTMusic().get_song(vid)
+def handle_input() -> dict:
+    query = " ".join(sys.argv[1:])
+    is_url = False
 
-
-def handle_input(arg: str = "") -> dict:
     # Handle Youtube URLs
-    if arg.startswith("https"):
-        vid = yt_url_to_vid(arg)
-        # url = arg
+    if query.startswith("https"):
+        query = yt_url_to_vid(query)
+        is_url = True
 
-        # result = get_info_from_vid(vid)
-
-    # If it can't be parsed as a URL, treat it as a query (even if empty)
-    else:
-        query = arg
-        result = search_song(query)
-
+    result = search_song(query=query, url_given=is_url)
     pp(result)
-    # TODO: Normalize the two options - URL, Song name and Artist
+    return result
 
 
 def main():
     # init()
-    # handle_input("https://www.youtube.com/watch?v=FVdjZYfDuLE")
-    # handle_input(sys.argv[-1])
-
-    # search_song()
+    # pp(search_song("FVdjZYfDuLE"))
+    handle_input()
 
     print("")
     # ytmdl.
