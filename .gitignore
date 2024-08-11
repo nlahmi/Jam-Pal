@@ -1,3 +1,5 @@
 separated/
 venv/
 test*
+*.mp3
+.cache
