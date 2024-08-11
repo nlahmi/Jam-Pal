@@ -1,19 +1,17 @@
-from pprint import pp
-import sys
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
-from urllib.parse import urlparse, parse_qs
-# from time import sleep
+from pprint import pp
+from urllib.parse import parse_qs, urlparse
+
+import demucs.separate
 
 import inquirer
-import demucs.separate
 import reapy
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
-
-# import shlex
 
 # snake_case - author-song_name
 project_name = "author-test"
@@ -40,7 +38,7 @@ def download_song(url: str):
 
 
 # Create new project
-def create_project():
+def create_project(launch: bool = True):
     project_file = project_base_path / f"{project_name}.RPP"
 
     # If dir already exists, also don't copy the template file
@@ -51,7 +49,8 @@ def create_project():
         print("Dir already exists")
 
     # Open reaper with out project in a detached process
-    subprocess.Popen(["reaper", project_file], start_new_session=True)
+    if launch:
+        subprocess.Popen(["reaper", project_file], start_new_session=True)
     # sleep(10)
 
 
@@ -61,11 +60,6 @@ def separate_tracks():
     temp_base_path = "separated"
     file_path = "test.mp3"
     demucs.separate.main(["--mp3", "-n", model, file_path])
-
-
-def reapy_test():
-    project = reapy.Project()
-    # reapy.print("yay")
 
 
 def init():
@@ -144,9 +138,6 @@ def search_song(query: str = None, url_given: bool = False) -> dict:
         "video_url": yt_vid_to_url(result["videoId"]),
     }
 
-    # print(chosen_result)
-    # return chosen_result
-
 
 def handle_input() -> dict:
     query = " ".join(sys.argv[1:])
@@ -163,24 +154,33 @@ def handle_input() -> dict:
 
 
 def main():
-    # init()
+    init()
     # pp(search_song("FVdjZYfDuLE"))
-    handle_input()
+    song_details = handle_input()
+
+    # download it
+
+    # not urgent: detect BPM
+
+    # separate_tracks()
+
+    # create_project()
+
+    # insert tracks to session
 
     print("")
-    # ytmdl.
 
 
 if __name__ == "__main__":
     main()
 
-print("done!")
+print("Done!")
 
-# Get a song name, spotify link, or youtube link
+## Get a song name, spotify link, or youtube link
 # Download the song via yt-dlp
 # Get the BPM of the song - either locally or via some online database
-# Separate instruments using demucs
-# Create a Reaper project with reathon and include the files and tempo
+## Separate instruments using demucs
+## Create a Reaper project with reathon and include the files and tempo
 # Start it and.. profit(?)
 
 # Extra1: Do a bass2midi detection
