@@ -8,19 +8,19 @@ from urllib.parse import parse_qs, urlparse
 
 import demucs.separate
 
+from unidecode import unidecode
 import inquirer
 import reapy
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
 
 # snake_case - author-song_name
-project_name = "author-test"
+# project_name = "author-test"
 template_file = Path("project_template.RPP")
 recordings_base_path = Path("/home/noam/projects/Recordings/")
-project_base_path = recordings_base_path / project_name
 
 
-def download_song(url: str):
+def download_song(url: str, save_path: Path) -> Path:
     ydl_opts = {
         "format": "bestaudio/best",
         "postprocessors": [
@@ -30,18 +30,30 @@ def download_song(url: str):
                 "preferredquality": "highest",
             }
         ],
-        "outtmpl": {"default": "ST_%(upload_date)s_%(title).50s.mp3"},
+        "outtmpl": {
+            "default": str(
+                (save_path / "%(uploader)s - %(title)s [%(id)s].%(ext)s").absolute()
+            )
+        },
     }
     with YoutubeDL(ydl_opts) as ydl:
-        out = ydl.download([url])
-        print(out)
+        info = ydl.extract_info(
+            url,
+            download=True,
+        )
+        file_path = ydl.prepare_filename(info)
+
+        return Path(file_path)
+        # out = ydl.download([url])
+        # print(out)
 
 
 # Create new project
-def create_project(launch: bool = True):
+def create_project(project_name: str, launch: bool = True) -> Path:
+    project_base_path = recordings_base_path / project_name
     project_file = project_base_path / f"{project_name}.RPP"
 
-    # If dir already exists, also don't copy the template file
+    # If dir already exists,also don't copy the template file
     try:
         os.mkdir(project_base_path)
         shutil.copyfile(template_file, project_file)
@@ -53,13 +65,19 @@ def create_project(launch: bool = True):
         subprocess.Popen(["reaper", project_file], start_new_session=True)
     # sleep(10)
 
+    return project_base_path
+
 
 # Separate tracks
-def separate_tracks():
-    model = "mkx_extra"
-    temp_base_path = "separated"
-    file_path = "test.mp3"
-    demucs.separate.main(["--mp3", "-n", model, file_path])
+def separate_tracks(song_path: Path, model = "htdemucs_6s") -> Path:
+    # model = "mkx_extra"
+    # temp_base_path = "separated"
+    base_path = song_path.parent
+    stems_path = base_path / model / song_path.stem
+
+    demucs.separate.main(["--mp3", "-n", model, "-o", str(base_path.absolute()), str(song_path.absolute())])
+
+    return stems_path
 
 
 def init():
@@ -153,18 +171,43 @@ def handle_input() -> dict:
     return result
 
 
+def slugify(original: str) -> str:
+    return unidecode(original).lower().replace(" ", "_")
+
+
+def generate_project_name(song_details: dict, ask: bool = True) -> str:
+    # Calculate the name from the song title and artist
+    project_name = f"{slugify(song_details['artist'])}-{slugify(song_details['title'])}"
+
+    # Confirm with the user and allow changes
+    if ask:
+        question = inquirer.Text(
+            name="project_name", message="Confirm Project Name", default=project_name
+        )
+        project_name = inquirer.prompt([question])["project_name"]
+
+    # Return the final project name as string
+    return project_name
+
+
 def main():
     init()
     # pp(search_song("FVdjZYfDuLE"))
-    song_details = handle_input()
 
-    # download it
+    song_details = search_song("aLGQTKtbkbg")
+    project_name = generate_project_name(song_details, ask=False)
+
+    # song_details = handle_input()
+    # project_name = generate_project_name(song_details)
+
+    project_path = create_project(project_name)
+
+    # song_path = download_song(song_details["video_url"], project_path)
+    song_path = Path("/home/noam/projects/Recordings/twenty_one_pilots-paladin_strait/twenty one pilots - Paladin Strait [aLGQTKtbkbg].mp3")
 
     # not urgent: detect BPM
 
-    # separate_tracks()
-
-    # create_project()
+    stems_path = separate_tracks(song_path)
 
     # insert tracks to session
 
@@ -177,12 +220,12 @@ if __name__ == "__main__":
 print("Done!")
 
 ## Get a song name, spotify link, or youtube link
+## Create a Reaper project with reathon
 ## Download the song via yt-dlp
 # Get the BPM of the song - either locally or via some online database
 ## Separate instruments using demucs
-## Create a Reaper project with reathon and include the files and tempo
 ## Start it and.. profit(?)
-# Not yet, still need to add tracks to reaper
+# Not yet, still need to add tracks to reaper (setting BPM first)
 
 # Extra1: Do a bass2midi detection
 # Extra2: Do a midi2tabs conversion
