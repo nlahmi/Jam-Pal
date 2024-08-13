@@ -1,3 +1,4 @@
+import logging
 import os
 import shutil
 import subprocess
@@ -7,16 +8,18 @@ from pprint import pp
 from urllib.parse import parse_qs, urlparse
 
 import demucs.separate
-
-from unidecode import unidecode
 import inquirer
+import librosa
 import reapy
 from reapy import reascript_api as RPR
+from unidecode import unidecode
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
 
-# snake_case - author-song_name
-# project_name = "author-test"
+logger = logging.getLogger(__name__)
+
+DEBUG = sys.gettrace() is not None
+
 template_file = Path("project_template.RPP")
 recordings_base_path = Path("/home/noam/projects/Recordings/")
 
@@ -44,9 +47,15 @@ def download_song(url: str, save_path: Path) -> Path:
         )
         file_path = ydl.prepare_filename(info)
 
-        return Path(file_path)
-        # out = ydl.download([url])
-        # print(out)
+        return Path(file_path).with_suffix(".mp3")
+
+
+def start_reaper(project_file: str | None = None):
+    args = ["reaper"]
+    if project_file:
+        args.append(project_file)
+
+    subprocess.Popen(args, start_new_session=True)
 
 
 # Create new project
@@ -63,7 +72,7 @@ def create_project(project_name: str, launch: bool = True) -> Path:
 
     # Open reaper with out project in a detached process
     if launch:
-        subprocess.Popen(["reaper", project_file], start_new_session=True)
+        start_reaper(project_file)
     # sleep(10)
 
     return project_base_path
@@ -88,10 +97,6 @@ def separate_tracks(song_path: Path, model="htdemucs_6s") -> Path:
     )
 
     return stems_path
-
-
-def init():
-    reapy.configure_reaper()
 
 
 def yt_vid_to_url(vid: str) -> str:
@@ -200,6 +205,16 @@ def generate_project_name(song_details: dict, ask: bool = True) -> str:
     return project_name
 
 
+def detect_bpm(song_path: Path) -> int:
+    # Load the audio file
+    y, sr = librosa.load(str(song_path.absolute()))
+
+    # Use librosa's tempo detection function to estimate the BPM
+    tempo, _ = librosa.beat.beat_track(y=y, sr=sr)
+
+    return int(tempo[0].round())
+
+
 def insert_media(
     project: reapy.Project,
     media_path: Path,
@@ -219,7 +234,7 @@ def insert_media(
     # BUG: doesn't really work for the purposes of adding a media item
     track.select()
 
-    # NOTE: We could save the position, insert there then restore it, 
+    # NOTE: We could save the position, insert there then restore it,
     # then the parent function would set to 0 if needed, but whatever - this works
 
     # Make sure we insert at the 0 position (or the point specified)
@@ -229,31 +244,60 @@ def insert_media(
     RPR.InsertMedia(str(media_path.absolute()), 0)
 
 
-def insert_stems_as_tracks(stems_path: Path):
-    project = reapy.Project()
-
+def insert_stems_as_tracks(project: reapy.Project, stems_path: Path):
     for file in stems_path.iterdir():
         insert_media(project=project, media_path=file)
 
 
-def main():
-    init()
-    # pp(search_song("FVdjZYfDuLE"))
+def init():
+    # Setup logging
+    level = logging.DEBUG if DEBUG else logging.INFO
+    format = (
+        "[%(levelname)s] - %(name)s - %(message)s - %(pathname)s:%(lineno)d"
+        if DEBUG
+        else "[%(levelname)s] %(message)s"
+    )
 
+    logging.basicConfig(level=logging.INFO, format=format)
+    logger.setLevel(level)
+
+    # Init reaper
+    try:
+        reapy.configure_reaper()
+    except RuntimeError:
+        logger.error(
+            "Reaper was not running. Please run this script again once it starts properly (launching in the background)"
+        )
+        start_reaper()
+        exit(1)
+
+
+def main():
+    # Init Reaper with reapy (only needs to be done once, then restart reaper)
+    init()
+
+    # Handle user input (argv or interactively) and generate a name for the project
     song_details = handle_input()
     project_name = generate_project_name(song_details)
 
+    # Create the project from template and launch it with Reaper
     project_path = create_project(project_name)
 
+    # Download the song
     song_path = download_song(song_details["video_url"], project_path)
 
-    # not urgent: detect BPM
+    # Detect BPM
+    song_bpm = detect_bpm(song_path)
 
+    # Seperate stems
     stems_path = separate_tracks(song_path)
 
-    # insert tracks to session
+    # Set the project's BPM
+    project = reapy.Project()
+    project.bpm = song_bpm
 
-    print("")
+    # Insert Stems to session
+    insert_stems_as_tracks(project=project, stems_path=stems_path)
 
 
 def main_test():
@@ -268,28 +312,34 @@ def main_test():
         "/home/noam/projects/Recordings/twenty_one_pilots-paladin_strait/twenty one pilots - Paladin Strait [aLGQTKtbkbg].mp3"
     )
 
-    # not urgent: detect BPM
-
     stems_path = Path(
         "/home/noam/projects/Recordings/twenty_one_pilots-paladin_strait/htdemucs_6s/twenty one pilots - Paladin Strait [aLGQTKtbkbg]/"
     )
 
-    # insert tracks to session
-    insert_stems_as_tracks(stems_path)
+    song_bpm = detect_bpm(song_path)
+
+    # Set the project's BPM
+    project = reapy.Project()
+    project.bpm = song_bpm
+
+    # Insert Stems to session
+    insert_stems_as_tracks(project=project, stems_path=stems_path)
 
     print("")
 
 
 if __name__ == "__main__":
-    # main()
-    main_test()
+    if DEBUG:
+        main_test()
+    else:
+        main()
 
 print("Done!")
 
 ## Get a song name, spotify link, or youtube link
 ## Create a Reaper project with reathon
 ## Download the song via yt-dlp
-# Get the BPM of the song - either locally or via some online database
+## Get the BPM of the song - either locally or via some online database
 ## Separate instruments using demucs
 ## Start it and.. profit(?)
 ## Not yet, still need to add tracks to reaper (setting BPM first)
