@@ -11,6 +11,7 @@ import demucs.separate
 from unidecode import unidecode
 import inquirer
 import reapy
+from reapy import reascript_api as RPR
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
 
@@ -69,13 +70,22 @@ def create_project(project_name: str, launch: bool = True) -> Path:
 
 
 # Separate tracks
-def separate_tracks(song_path: Path, model = "htdemucs_6s") -> Path:
+def separate_tracks(song_path: Path, model="htdemucs_6s") -> Path:
     # model = "mkx_extra"
     # temp_base_path = "separated"
     base_path = song_path.parent
     stems_path = base_path / model / song_path.stem
 
-    demucs.separate.main(["--mp3", "-n", model, "-o", str(base_path.absolute()), str(song_path.absolute())])
+    demucs.separate.main(
+        [
+            "--mp3",
+            "-n",
+            model,
+            "-o",
+            str(base_path.absolute()),
+            str(song_path.absolute()),
+        ]
+    )
 
     return stems_path
 
@@ -190,20 +200,52 @@ def generate_project_name(song_details: dict, ask: bool = True) -> str:
     return project_name
 
 
+def insert_media(
+    project: reapy.Project,
+    media_path: Path,
+    track_index: int = 0,
+    insertion_point: float = 0.0,
+    new_track: bool = True,
+):
+    # Create a new track with the name being the filename (without suffix)
+    if new_track:
+        track = project.add_track(index=track_index, name=media_path.stem)
+
+    # Selecting an existing track
+    else:
+        track = project.tracks()[track_index]
+
+    # Setting the focus on the track
+    # BUG: doesn't really work for the purposes of adding a media item
+    track.select()
+
+    # NOTE: We could save the position, insert there then restore it, 
+    # then the parent function would set to 0 if needed, but whatever - this works
+
+    # Make sure we insert at the 0 position (or the point specified)
+    project.cursor_position = insertion_point
+
+    # Insert the media into the 0-index track (512 does that, apparantly - though 0 would just be the selected track)
+    RPR.InsertMedia(str(media_path.absolute()), 0)
+
+
+def insert_stems_as_tracks(stems_path: Path):
+    project = reapy.Project()
+
+    for file in stems_path.iterdir():
+        insert_media(project=project, media_path=file)
+
+
 def main():
     init()
     # pp(search_song("FVdjZYfDuLE"))
 
-    song_details = search_song("aLGQTKtbkbg")
-    project_name = generate_project_name(song_details, ask=False)
-
-    # song_details = handle_input()
-    # project_name = generate_project_name(song_details)
+    song_details = handle_input()
+    project_name = generate_project_name(song_details)
 
     project_path = create_project(project_name)
 
-    # song_path = download_song(song_details["video_url"], project_path)
-    song_path = Path("/home/noam/projects/Recordings/twenty_one_pilots-paladin_strait/twenty one pilots - Paladin Strait [aLGQTKtbkbg].mp3")
+    song_path = download_song(song_details["video_url"], project_path)
 
     # not urgent: detect BPM
 
@@ -214,8 +256,33 @@ def main():
     print("")
 
 
+def main_test():
+    init()
+
+    song_details = search_song("aLGQTKtbkbg")
+    project_name = generate_project_name(song_details, ask=False)
+
+    project_path = create_project(project_name)
+
+    song_path = Path(
+        "/home/noam/projects/Recordings/twenty_one_pilots-paladin_strait/twenty one pilots - Paladin Strait [aLGQTKtbkbg].mp3"
+    )
+
+    # not urgent: detect BPM
+
+    stems_path = Path(
+        "/home/noam/projects/Recordings/twenty_one_pilots-paladin_strait/htdemucs_6s/twenty one pilots - Paladin Strait [aLGQTKtbkbg]/"
+    )
+
+    # insert tracks to session
+    insert_stems_as_tracks(stems_path)
+
+    print("")
+
+
 if __name__ == "__main__":
-    main()
+    # main()
+    main_test()
 
 print("Done!")
 
@@ -225,7 +292,7 @@ print("Done!")
 # Get the BPM of the song - either locally or via some online database
 ## Separate instruments using demucs
 ## Start it and.. profit(?)
-# Not yet, still need to add tracks to reaper (setting BPM first)
+## Not yet, still need to add tracks to reaper (setting BPM first)
 
 # Extra1: Do a bass2midi detection
 # Extra2: Do a midi2tabs conversion
