@@ -15,6 +15,7 @@ from reapy import reascript_api as RPR
 from unidecode import unidecode
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
+from basic_pitch.inference import predict_and_save
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,49 @@ def insert_stems_as_tracks(project: reapy.Project, stems_path: Path):
         insert_media(project=project, media_path=file)
 
 
+def transcribe_stem(stems_path: Path, instrument: str = "bass"):
+    from basic_pitch import ICASSP_2022_MODEL_PATH
+
+    # Pretty self-explanatory..
+    instrument_filepath = str((stems_path / instrument).with_suffix(".mp3").absolute())
+    predict_and_save(
+        audio_path_list=[instrument_filepath],
+        output_directory=str(stems_path.absolute()),
+        save_midi=True,
+        sonify_midi=False,
+        save_model_outputs=False,
+        save_notes=False,
+        model_or_model_path=ICASSP_2022_MODEL_PATH,
+    )
+
+    # Return the final path of the MIDI file
+    return stems_path / f"{instrument}_basic_pitch.mid"
+
+
+def midi_to_tab(midi_path: Path, instrument: str = "bass"):
+    import pretty_midi
+    from tuttut.logic.tab import Tab
+    from tuttut.logic.theory import Tuning
+
+    weights = {"b": 1, "height": 1, "length": 1, "n_changed_strings": 1}
+    f = pretty_midi.PrettyMIDI(midi_path.as_posix())
+
+    # TODO: Handle different instruments (guitar)
+    tuning = Tuning(["G2", "D2", "A1", "E1"])
+
+    tab = Tab(
+        midi_path.stem,
+        tuning,
+        f,
+        weights=weights,
+        output_dir=str(midi_path.parent.absolute()),
+    )
+    tab.to_ascii()
+
+    # TODO: Return the final path of the txt file and open it (in the main fucntion)
+    return 
+
+
 def init():
     # Setup logging
     level = logging.DEBUG if DEBUG else logging.INFO
@@ -299,6 +343,12 @@ def main():
     # Insert Stems to session
     insert_stems_as_tracks(project=project, stems_path=stems_path)
 
+    # Transcribe
+    midi_path = transcribe_stem(stems_path=stems_path, instrument="bass")
+
+    # Convert MIDI to Tabs
+    midi_to_tab(midi_path)
+
 
 def main_test():
     init()
@@ -323,7 +373,13 @@ def main_test():
     project.bpm = song_bpm
 
     # Insert Stems to session
-    insert_stems_as_tracks(project=project, stems_path=stems_path)
+    # insert_stems_as_tracks(project=project, stems_path=stems_path)
+
+    # Transcribe
+    midi_path = transcribe_stem(stems_path=stems_path, instrument="bass")
+
+    # Convert MIDI to Tabs
+    midi_to_tab(midi_path)
 
     print("")
 

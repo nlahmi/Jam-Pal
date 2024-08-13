@@ -1,5 +1,5 @@
 separated/
-venv/
+venv*
 test*
 *.mp3
 .cache
