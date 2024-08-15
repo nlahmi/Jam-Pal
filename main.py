@@ -10,12 +10,15 @@ from urllib.parse import parse_qs, urlparse
 import demucs.separate
 import inquirer
 import librosa
+import pretty_midi
 import reapy
+from basic_pitch.inference import predict_and_save
 from reapy import reascript_api as RPR
+from tuttut.logic.tab import Tab
+from tuttut.logic.theory import Tuning
 from unidecode import unidecode
 from yt_dlp import YoutubeDL
 from ytmusicapi import YTMusic
-from basic_pitch.inference import predict_and_save
 
 logger = logging.getLogger(__name__)
 
@@ -270,10 +273,6 @@ def transcribe_stem(stems_path: Path, instrument: str = "bass"):
 
 
 def midi_to_tab(midi_path: Path, instrument: str = "bass"):
-    import pretty_midi
-    from tuttut.logic.tab import Tab
-    from tuttut.logic.theory import Tuning
-
     weights = {"b": 1, "height": 1, "length": 1, "n_changed_strings": 1}
     f = pretty_midi.PrettyMIDI(midi_path.as_posix())
 
@@ -290,7 +289,7 @@ def midi_to_tab(midi_path: Path, instrument: str = "bass"):
     tab.to_ascii()
 
     # TODO: Return the final path of the txt file and open it (in the main fucntion)
-    return 
+    return
 
 
 def init():
@@ -400,7 +399,7 @@ print("Done!")
 ## Start it and.. profit(?)
 ## Not yet, still need to add tracks to reaper (setting BPM first)
 
-# Extra1: Do a bass2midi detection
-# Extra2: Do a midi2tabs conversion
+## Extra1: Do a bass2midi detection
+## Extra2: Do a midi2tabs conversion
 # Extra3: Chords Overlay (markers?)
 # Extra4: Lyrics - https://github.com/johnwmillr/LyricsGenius/tree/master
