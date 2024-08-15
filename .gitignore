@@ -3,3 +3,4 @@ venv*
 test*
 *.mp3
 .cache
+__pychace__
