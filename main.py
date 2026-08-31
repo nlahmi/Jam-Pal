@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from pprint import pp
 from urllib.parse import parse_qs, urlparse
@@ -148,12 +149,7 @@ def search_song(query: str = None, url_given: bool = False) -> dict:
     # No results but URL given, supply values manually
     elif url_given:
         print("No search results found, please input song details manualy.")
-
-        questions = [
-            inquirer.Text(name="title", message="Song Name"),
-            inquirer.Text(name="artist", message="Artist Name"),
-        ]
-        result = inquirer.prompt(questions)
+        result = ask_song_details()
 
         # Query is probably the video_id
         result["video_id"] = query
@@ -176,14 +172,24 @@ def search_song(query: str = None, url_given: bool = False) -> dict:
     }
 
 
+def ask_song_details():
+    questions = [
+        inquirer.Text(name="title", message="Song Name"),
+        inquirer.Text(name="artist", message="Artist Name"),
+    ]
+    return inquirer.prompt(questions)
+
+
 def handle_input() -> dict:
     query = " ".join(sys.argv[1:])
     is_url = False
 
-    # Handle Youtube URLs
+    # Handle YouTube URLs
     if query.startswith("https"):
         query = yt_url_to_vid(query)
         is_url = True
+    elif Path(query).is_file():
+        pass
 
     result = search_song(query=query, url_given=is_url)
     pp(result)
@@ -307,11 +313,16 @@ def init():
     # Init reaper
     try:
         reapy.configure_reaper()
+        return
     except RuntimeError:
-        logger.error(
-            "Reaper was not running. Please run this script again once it starts properly (launching in the background)"
-        )
+        logger.error("Reaper was not running. Starting it and trying again.")
         start_reaper()
+        time.sleep(30)
+
+    try:
+        reapy.configure_reaper()
+    except RuntimeError:
+        logger.error("Still couldn't configure Reaper. Exiting.")
         exit(1)
 
 
