@@ -55,6 +55,15 @@ def download_song(url: str, save_path: Path) -> Path:
         return Path(file_path).with_suffix(".mp3")
 
 
+def import_local_song(source_path: Path, save_path: Path) -> Path:
+    # Demucs writes the stems next to the song, so keep it inside the project
+    destination = save_path / source_path.name
+    if source_path.absolute() != destination.absolute():
+        shutil.copyfile(source_path, destination)
+
+    return destination
+
+
 def start_reaper(project_file: str | None = None):
     args = ["reaper"]
     if project_file:
@@ -188,8 +197,13 @@ def handle_input() -> dict:
     if query.startswith("https"):
         query = yt_url_to_vid(query)
         is_url = True
+
+    # A local audio file - nothing to search or download, just ask for the details
     elif Path(query).is_file():
-        pass
+        result = ask_song_details()
+        result["local_path"] = Path(query)
+        pp(result)
+        return result
 
     result = search_song(query=query, url_given=is_url)
     pp(result)
@@ -337,8 +351,11 @@ def main():
     # Create the project from template and launch it with Reaper
     project_path = create_project(project_name)
 
-    # Download the song
-    song_path = download_song(song_details["video_url"], project_path)
+    # Use the local file if one was given, otherwise download the song
+    if song_details.get("local_path"):
+        song_path = import_local_song(song_details["local_path"], project_path)
+    else:
+        song_path = download_song(song_details["video_url"], project_path)
 
     # Detect BPM
     song_bpm = detect_bpm(song_path)

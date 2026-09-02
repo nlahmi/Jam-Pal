@@ -31,4 +31,7 @@ python main.py
 
 # You can also supply a youtube video URL 
 python main.py "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+
+# Or a local audio file (you'll be asked for the song name and artist)
+python main.py ~/Music/some_song.mp3
 ```
